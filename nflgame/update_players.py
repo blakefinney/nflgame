@@ -125,6 +125,17 @@ def gsis_id(profile_url):
         return None
     return gid
 
+def esb_id(profile_url):
+    resp, content = new_http().request(profile_url, 'GET')
+    if resp['status'] != '200':
+        return None
+    m = re.search('ESB\s+ID:\s+([A-Z0-9-]+)', content)
+    if m is None:
+        return None
+    eid = m.group(1).strip()
+    if len(eid) != 9:  # Can't be valid...
+        return None
+    return eid
 
 def roster_soup(team):
     resp, content = new_http().request(urls['roster'] % team, 'GET')
@@ -181,6 +192,7 @@ def meta_from_soup_row(team, soup_row):
     return {
         'team': team,
         'profile_id': profile_id_from_url(profile_url),
+        'esb_id': esb_id(profile_url),
         'profile_url': profile_url,
         'number': try_int(data[0]),
         'first_name': first_name,
