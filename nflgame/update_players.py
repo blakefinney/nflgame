@@ -182,6 +182,7 @@ def meta_from_soup_row(team, soup_row):
         tds.append(td)
         data.append(td.get_text().strip())
     profile_url = 'http://www.nfl.com%s' % tds[1].a['href']
+    esb = esb_id(profile_url=profile_url)
 
     name = tds[1].a.get_text().strip()
     if ',' not in name:
@@ -192,7 +193,7 @@ def meta_from_soup_row(team, soup_row):
     return {
         'team': team,
         'profile_id': profile_id_from_url(profile_url),
-        'esb_id': esb_id(profile_url),
+        'esb_id': esb,
         'profile_url': profile_url,
         'number': try_int(data[0]),
         'first_name': first_name,
