@@ -39,6 +39,7 @@ class Player (object):
     def __init__(self, data):
         self.player_id = data['gsis_id']
         self.gsis_name = data.get('gsis_name', '')
+        self.esb_id = data.get('esb_id','')
         self.full_name = data.get('full_name', '')
         self.first_name = data.get('first_name', '')
         self.last_name = data.get('last_name', '')

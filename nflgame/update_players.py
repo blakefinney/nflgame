@@ -118,24 +118,32 @@ def gsis_id(profile_url):
     if resp['status'] != '200':
         return None
     m = re.search('GSIS\s+ID:\s+([0-9-]+)', content)
-    if m is None:
-        return None
+    n = re.search('ESB\s+ID:\s+([A-Z0-9-]+)', content)
+    if m is None and n is None:
+        return None, None
+    # Check gid is valid
     gid = m.group(1).strip()
     if len(gid) != 10:  # Can't be valid...
-        return None
-    return gid
+        gid = None
+    # check eid is valid
+    eid = n.group(1).strip()
+    if len(eid) != 9:  # Can't be valid...
+        eid = None
+    return gid, eid
 
 def esb_id(profile_url):
     resp, content = new_http().request(profile_url, 'GET')
     if resp['status'] != '200':
         return None
-    m = re.search('ESB\s+ID:\s+([A-Z0-9-]+)', content)
-    if m is None:
+    n = re.search('ESB\s+ID:\s+([A-Z0-9-]+)', content)
+    if n is None:
         return None
-    eid = m.group(1).strip()
+    # check eid is valid
+    eid = n.group(1).strip()
     if len(eid) != 9:  # Can't be valid...
-        return None
+        eid = None
     return eid
+
 
 def roster_soup(team):
     resp, content = new_http().request(urls['roster'] % team, 'GET')
@@ -176,24 +184,22 @@ def height_as_inches(txt):
     return feet * 12 + inches
 
 
-def meta_from_soup_row(team, soup_row):
+def meta_from_soup_row(team, soup_row, full_scan):
     tds, data = [], []
     for td in soup_row.find_all('td'):
         tds.append(td)
         data.append(td.get_text().strip())
     profile_url = 'http://www.nfl.com%s' % tds[1].a['href']
-    esb = esb_id(profile_url=profile_url)
 
     name = tds[1].a.get_text().strip()
     if ',' not in name:
         last_name, first_name = name, ''
     else:
-        last_name, first_name = map(lambda s: s.strip(), name.split(','))
+        last_name, first_name = map(lambda s: s.strip(), name.split(',')[:2])
 
-    return {
+    return_data = {
         'team': team,
         'profile_id': profile_id_from_url(profile_url),
-        'esb_id': esb,
         'profile_url': profile_url,
         'number': try_int(data[0]),
         'first_name': first_name,
@@ -207,6 +213,12 @@ def meta_from_soup_row(team, soup_row):
         'years_pro': try_int(data[7]),
         'college': data[8],
     }
+
+    if full_scan:
+        # Access Profile Page Data
+        # Quite hefty so only do on full_scan
+        return_data.update({"esb_id": esb_id(profile_url=profile_url)})
+    return return_data
 
 
 def meta_from_profile_html(html):
@@ -368,7 +380,7 @@ def run():
         players = {}
 
         # Grab players one game a time to avoid obscene memory requirements.
-        for _, schedule in nflgame.sched.games.itervalues():
+        for _, schedule in nflgame.sched.games.iteritems():
             # If the game is too far in the future, skip it...
             if nflgame.live._game_datetime(schedule) > nflgame.live._now():
                 continue
@@ -429,7 +441,7 @@ def run():
 
         for row in tbodys[len(tbodys)-1].find_all('tr'):
             try:
-                roster.append(meta_from_soup_row(team, row))
+                roster.append(meta_from_soup_row(team, row, args.full_scan))
             except Exception:
                 errors.append(
                     'Could not get player info from roster row:\n\n%s\n\n'
@@ -445,8 +457,9 @@ def run():
         eprint('Fetching GSIS identifiers for players not in nflgame...')
 
         def fetch(purl):
-            return purl, gsis_id(purl)
-        for i, (purl, gid) in enumerate(pool.imap(fetch, purls), 1):
+            gsis_id, esb_id = gsis_id(purl)
+            return purl, gsis_id, esb_id
+        for i, (purl, gid, eid) in enumerate(pool.imap(fetch, purls), 1):
             progress(i, len(purls))
 
             if gid is None:
